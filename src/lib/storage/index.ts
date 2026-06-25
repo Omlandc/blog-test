@@ -11,13 +11,18 @@ export type {
   ArticleStorageAdapter,
 } from './types';
 export { LocalStorageArticleAdapter } from './local';
-export { SEED_ARTICLES } from './seed';
-export type {
-  Article,
-  ArticleQuery,
-  PageResult,
-  ArticleStatus,
-} from '../types';
+// 修：SEED_ARTICLES 静态 re-export 会让 Vite 把 seed.ts 打入主包
+// 改用动态 import 需要的代码自己调
+export type { Article, ArticleQuery, PageResult, ArticleStatus } from '../types';
+// 提供一个 async helper，让需要 seed 的模块（export-static.mjs / scripts/）动态加载
+export async function loadSeedArticles(): Promise<Article[]> {
+  const mod = await import('./seed');
+  return mod.SEED_ARTICLES;
+}
+export async function loadSeedAuthors(): Promise<unknown[]> {
+  const mod = await import('./seed');
+  return mod.SEED_AUTHORS;
+}
 
 let _storage: ArticleStorageAdapter | null = null;
 

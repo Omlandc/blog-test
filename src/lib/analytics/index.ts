@@ -190,7 +190,11 @@ class AnalyticsStore {
 
     const totalViews = events.length;
     const uniqueVisitors = new Set(events.map((e) => e.referrer ?? e.path)).size;
-    const durations = events.filter((e) => e.durationSec).map((e) => e.durationSec!);
+    // 修：之前用 filter((e) => e.durationSec) 会丢 0 秒事件（用户秒退）
+    // 改为检查 != null，保留 0 秒
+    const durations = events
+      .filter((e): e is typeof e & { durationSec: number } => e.durationSec != null)
+      .map((e) => e.durationSec);
     const avgDurationSec =
       durations.length > 0
         ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)

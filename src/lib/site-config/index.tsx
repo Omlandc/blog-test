@@ -19,9 +19,9 @@ const STORAGE_KEY = 'blog-system:site-config';
 const TOOLS_STORAGE_KEY = 'blog-system:tools';
 
 export const DEFAULT_SITE_CONFIG: SiteConfig = {
-  name: 'Blog Test 站点',
-  tagline: 'blog-system 多站点架构测试仓 #1',
-  description: '这是 blog-system 总控台管理的第一个子仓（blog-test）。所有内容由主仓推送。',
+  name: '博客系统',
+  tagline: '一套可复用的细分内容站框架',
+  description: '基于 React 18 + TypeScript + Vite 的开源博客与文章创作系统。',
   niche: 'tech',
   language: 'zh-CN',
   logoMark: '✍',
@@ -69,6 +69,19 @@ export function loadSiteConfig(): SiteConfig {
   } catch {
     return DEFAULT_SITE_CONFIG;
   }
+}
+
+/**
+ * 外部模块只读语言时调这个，不用自己去读 localStorage
+ * 避免跨模块 localStorage 访问（重构 storage adapter 时会坏）
+ */
+export function getSiteLanguage(): string {
+  return loadSiteConfig().language;
+}
+
+/** 外部模块只读站点名时调这个 */
+export function getSiteName(): string {
+  return loadSiteConfig().name;
 }
 
 /** 保存站点配置 */

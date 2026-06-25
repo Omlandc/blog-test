@@ -9,11 +9,11 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { getSiteLanguage } from '@/lib/site-config';
 
 export type Locale = 'zh-CN' | 'en-US';
 
 const STORAGE_KEY = 'blog-system:locale';
-const SITE_CONFIG_KEY = 'blog-system:site-config';
 
 /** 检测浏览器语言 */
 export function detectBrowserLocale(): Locale {
@@ -204,6 +204,7 @@ const translations: Record<string, Record<Locale, string>> = {
   'admin.pageOf': { 'zh-CN': '第 {page} / {total} 页 · 共 {count} 篇', 'en-US': 'Page {page} / {total} · {count} articles' },
   'admin.series': { 'zh-CN': '主题簇管理', 'en-US': 'Topic clusters' },
   'admin.sites': { 'zh-CN': '多站点管理', 'en-US': 'Multi-site' },
+  'admin.export': { 'zh-CN': '导出推送', 'en-US': 'Export for push' },
   'admin.siteConfig': { 'zh-CN': '站点身份与定位', 'en-US': 'Site identity' },
   'admin.docs': { 'zh-CN': '系统文档', 'en-US': 'Documentation' },
   'admin.migrate': { 'zh-CN': '数据迁移', 'en-US': 'Migration' },
@@ -268,16 +269,9 @@ function loadLocale(): Locale {
   // 1) 用户手动设置
   const stored = window.localStorage.getItem(STORAGE_KEY);
   if (stored === 'zh-CN' || stored === 'en-US') return stored;
-  // 2) SiteConfig 设置
-  try {
-    const cfg = window.localStorage.getItem(SITE_CONFIG_KEY);
-    if (cfg) {
-      const lang = JSON.parse(cfg).language;
-      if (lang === 'zh-CN' || lang === 'en-US') return lang;
-    }
-  } catch {
-    // ignore
-  }
+  // 2) SiteConfig 设置（走 site-config 模块的 API，不再直接读 localStorage）
+  const lang = getSiteLanguage();
+  if (lang === 'zh-CN' || lang === 'en-US') return lang;
   // 3) 浏览器语言
   return detectBrowserLocale();
 }

@@ -58,12 +58,13 @@ export interface ArticleViewerProps {
  */
 function renderSafeHtml(html: string): string {
   if (!html) return '';
+  // 修：之前用 ALLOWED_TAGS: ['__ALL__'] 是错的（DOMPurify 当成只允许一个叫 __ALL__ 的标签）
+  // 正确做法：什么都不传（用默认 HTML safe list）或 USE_PROFILES
+  // 这里用 USE_PROFILES + 显式 FORBID 列表，意图清晰
   return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['__ALL__' as unknown as string],
-    ALLOWED_ATTR: ['__ALL__' as unknown as string],
-    KEEP_CONTENT: true,
-    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
-    FORBID_ATTR: ['onerror', 'onload', 'onclick'],
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'link', 'meta'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur'],
   });
 }
 

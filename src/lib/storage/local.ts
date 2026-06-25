@@ -7,9 +7,18 @@
  */
 import type { Article, ArticleQuery, PageResult } from '../types';
 import type { ArticleStorageAdapter } from './types';
-import { SEED_ARTICLES } from './seed';
 import { uid } from '../utils';
 import { safeSetItem } from './safe-write';
+
+// 修：之前静态 import seed，937 行 种子数据会被打入主包
+// 改为动态 import，首次调用 ensureSeed/reset 时才拉
+let _seedCache: Article[] | null = null;
+async function loadSeed(): Promise<Article[]> {
+  if (_seedCache) return _seedCache;
+  const mod = await import('./seed');
+  _seedCache = mod.SEED_ARTICLES;
+  return _seedCache;
+}
 
 const STORAGE_KEY = 'blog-system:articles';
 const VERSION_KEY = 'blog-system:articles:version';
@@ -37,11 +46,17 @@ function writeAll(items: Article[]): void {
   }
 }
 
-function ensureSeed(): void {
+/**
+ * 触发首次 seed 加载（惰性）。返回 Promise，在种子被写入后才 resolve。
+ * 重复调用安全——会被缓存。
+ */
+function ensureSeedAsync(): Promise<void> {
   const v = localStorage.getItem(VERSION_KEY);
-  if (v === CURRENT_VERSION) return;
-  writeAll(SEED_ARTICLES);
-  localStorage.setItem(VERSION_KEY, CURRENT_VERSION);
+  if (v === CURRENT_VERSION) return Promise.resolve();
+  return loadSeed().then((seeds) => {
+    writeAll(seeds);
+    localStorage.setItem(VERSION_KEY, CURRENT_VERSION);
+  });
 }
 
 export class LocalStorageArticleAdapter implements ArticleStorageAdapter {
@@ -49,28 +64,40 @@ export class LocalStorageArticleAdapter implements ArticleStorageAdapter {
   // 写串行化：避免并发 increment/update/delete 读到陈旧快照
   // localStorage 是同步 API + 读-改-写不是原子的
   private writeQueue: Promise<unknown> = Promise.resolve();
+  // seed 加载的 promise，多次调用 share
+  private readyPromise: Promise<void> | null = null;
 
-  constructor() {
-    ensureSeed();
+  /** 等待 seed 加载完成。读操作前调这个。 */
+  private ready(): Promise<void> {
+    if (!this.readyPromise) {
+      this.readyPromise = ensureSeedAsync().catch((err) => {
+        this.readyPromise = null;
+        throw err;
+      });
+    }
+    return this.readyPromise;
   }
 
   /** 把写操作串行化到队列里，保证不会读到陈旧值 */
   private serialize<T>(fn: () => T): Promise<T> {
-    const next = this.writeQueue.then(fn);
-    // 吃掉链上错误，不污染后续调用
+    // 先等 ready，再进队列。避免 seed 还没加载完就写入
+    const next = this.ready().then(() => this.writeQueue).then(fn);
     this.writeQueue = next.catch(() => undefined);
     return next;
   }
 
   async getAll(): Promise<Article[]> {
+    await this.ready();
     return readAll();
   }
 
   async getById(id: string): Promise<Article | null> {
+    await this.ready();
     return readAll().find((a) => a.id === id) ?? null;
   }
 
   async getBySlug(slug: string): Promise<Article | null> {
+    await this.ready();
     return readAll().find((a) => a.slug === slug) ?? null;
   }
 
@@ -130,6 +157,7 @@ export class LocalStorageArticleAdapter implements ArticleStorageAdapter {
   }
 
   async query(params: ArticleQuery): Promise<PageResult<Article>> {
+    await this.ready();
     const all = readAll();
     let filtered = all;
 
@@ -202,8 +230,9 @@ export class LocalStorageArticleAdapter implements ArticleStorageAdapter {
 
   /** 重置为种子数据 */
   async reset(): Promise<void> {
-    writeAll(SEED_ARTICLES);
-    this.emit(SEED_ARTICLES);
+    const seeds = await loadSeed();
+    writeAll(seeds);
+    this.emit(seeds);
   }
 
   /** 同步一批（供静态包种子调用） */

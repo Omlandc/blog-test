@@ -9,6 +9,7 @@ import type { Article, ArticleQuery, PageResult } from '../types';
 import type { ArticleStorageAdapter } from './types';
 import { SEED_ARTICLES } from './seed';
 import { uid } from '../utils';
+import { safeSetItem } from './safe-write';
 
 const STORAGE_KEY = 'blog-system:articles';
 const VERSION_KEY = 'blog-system:articles:version';
@@ -28,10 +29,11 @@ function readAll(): Article[] {
 }
 
 function writeAll(items: Article[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  } catch (err) {
-    console.error('[LocalStorageAdapter] write failed:', err);
+  const result = safeSetItem(STORAGE_KEY, JSON.stringify(items));
+  if (!result.ok) {
+    // 修：之前 try/catch 静默吞错，用户以为保存成功
+    // 现在丢出去，让调用方处理（toast + 调出旧值恢复）
+    throw new Error(result.message ?? 'localStorage 写入失败');
   }
 }
 
@@ -44,9 +46,20 @@ function ensureSeed(): void {
 
 export class LocalStorageArticleAdapter implements ArticleStorageAdapter {
   private listeners = new Set<Listener>();
+  // 写串行化：避免并发 increment/update/delete 读到陈旧快照
+  // localStorage 是同步 API + 读-改-写不是原子的
+  private writeQueue: Promise<unknown> = Promise.resolve();
 
   constructor() {
     ensureSeed();
+  }
+
+  /** 把写操作串行化到队列里，保证不会读到陈旧值 */
+  private serialize<T>(fn: () => T): Promise<T> {
+    const next = this.writeQueue.then(fn);
+    // 吃掉链上错误，不污染后续调用
+    this.writeQueue = next.catch(() => undefined);
+    return next;
   }
 
   async getAll(): Promise<Article[]> {
@@ -62,50 +75,58 @@ export class LocalStorageArticleAdapter implements ArticleStorageAdapter {
   }
 
   async create(item: Article): Promise<Article> {
-    const items = readAll();
-    const newItem: Article = {
-      ...item,
-      id: item.id || uid('a'),
-      createdAt: item.createdAt || new Date().toISOString(),
-      updatedAt: item.updatedAt || new Date().toISOString(),
-      views: item.views ?? 0,
-    };
-    items.unshift(newItem);
-    writeAll(items);
-    this.emit(items);
-    return newItem;
+    return this.serialize(() => {
+      const items = readAll();
+      const newItem: Article = {
+        ...item,
+        id: item.id || uid('a'),
+        createdAt: item.createdAt || new Date().toISOString(),
+        updatedAt: item.updatedAt || new Date().toISOString(),
+        views: item.views ?? 0,
+      };
+      items.unshift(newItem);
+      writeAll(items);
+      this.emit(items);
+      return newItem;
+    });
   }
 
   async update(id: string, partial: Partial<Article>): Promise<Article> {
-    const items = readAll();
-    const idx = items.findIndex((a) => a.id === id);
-    if (idx === -1) throw new Error(`Article ${id} not found`);
-    const merged: Article = {
-      ...items[idx]!,
-      ...partial,
-      id,
-      updatedAt: new Date().toISOString(),
-    };
-    items[idx] = merged;
-    writeAll(items);
-    this.emit(items);
-    return merged;
+    return this.serialize(() => {
+      const items = readAll();
+      const idx = items.findIndex((a) => a.id === id);
+      if (idx === -1) throw new Error(`Article ${id} not found`);
+      const merged: Article = {
+        ...items[idx]!,
+        ...partial,
+        id,
+        updatedAt: new Date().toISOString(),
+      };
+      items[idx] = merged;
+      writeAll(items);
+      this.emit(items);
+      return merged;
+    });
   }
 
   async delete(id: string): Promise<void> {
-    const items = readAll().filter((a) => a.id !== id);
-    writeAll(items);
-    this.emit(items);
+    return this.serialize(() => {
+      const items = readAll().filter((a) => a.id !== id);
+      writeAll(items);
+      this.emit(items);
+    });
   }
 
   async incrementViews(id: string): Promise<void> {
-    const items = readAll();
-    const idx = items.findIndex((a) => a.id === id);
-    if (idx === -1) return;
-    const target = items[idx]!;
-    items[idx] = { ...target, views: target.views + 1 };
-    writeAll(items);
-    this.emit(items);
+    return this.serialize(() => {
+      const items = readAll();
+      const idx = items.findIndex((a) => a.id === id);
+      if (idx === -1) return;
+      const target = items[idx]!;
+      items[idx] = { ...target, views: target.views + 1 };
+      writeAll(items);
+      this.emit(items);
+    });
   }
 
   async query(params: ArticleQuery): Promise<PageResult<Article>> {

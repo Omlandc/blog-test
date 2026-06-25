@@ -66,6 +66,9 @@ export default function App(): React.ReactElement {
       <SiteConfigProvider
         initialConfig={bundle?.config}
         initialTools={bundle?.tools ?? DEFAULT_TOOLS}
+        // 修复：static bundle 存在时自动设为 static 模式
+        // 不然 /admin 路由在 static 部署里还能访问（虽然没有真后端，但 mock auth 能登入）
+        initialMode={bundle ? 'static' : 'embedded'}
       >
         <ThemeProvider defaultTheme="light">
           <AuthProvider>

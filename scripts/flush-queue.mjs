@@ -130,6 +130,90 @@ async function writeFile(owner, repo, path, content, message, branch, sha) {
 /* ------------------------------------------------------------------ */
 /*  Process queue                                                       */
 /* ------------------------------------------------------------------ */
+
+/**
+ * 在 DEFAULT_SITE_CONFIG 源文件里 patch 指定字段
+ * 不重写整个文件，保留 React Context 逻辑、tools、hook 等等
+ *
+ * 支持的类型：string, number, boolean, array (替换整个数组), object (替换整个对象)
+ * 例：patchDefaultSiteConfig(src, { name: '新名', niche: 'tech' })
+ */
+function patchDefaultSiteConfig(source, patch) {
+  let content = source;
+  let changed = 0;
+  const appliedFields = [];
+  for (const [field, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    // 转义 value 为源码表示
+    let valueStr;
+    if (typeof value === 'string') {
+      valueStr = `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+    } else if (typeof value === 'number' || typeof value === 'boolean') {
+      valueStr = String(value);
+    } else {
+      // array / object - 用 JSON（要求中不能有 function / undefined）
+      valueStr = JSON.stringify(value);
+    }
+
+    let newContent;
+    if (typeof value === 'object' && value !== null) {
+      // 数组或对象：定位到 field 后的第一个 [ 或 {，然后找到匹配的 ] 或 }（多行）
+      const startRegex = new RegExp(`(\\b${field}\\s*:\\s*)(\\[|\\{)`, 'm');
+      const startMatch = content.match(startRegex);
+      if (!startMatch) continue;
+      // openChar 在 startMatch.index + startMatch[1].length
+      const openCharPos = startMatch.index + startMatch[1].length;
+      const openChar = startMatch[2];
+      const closeChar = openChar === '[' ? ']' : '}';
+      // 从 openCharPos + 1 开始扫描，找匹配的 closeChar
+      let depth = 1;
+      let pos = openCharPos + 1;
+      let inString = null;
+      let escaped = false;
+      while (pos < content.length && depth > 0) {
+        const ch = content[pos];
+        if (escaped) { escaped = false; pos++; continue; }
+        if (ch === '\\') { escaped = true; pos++; continue; }
+        if (inString) {
+          if (ch === inString) inString = null;
+        } else {
+          if (ch === '"' || ch === "'" || ch === '`') inString = ch;
+          else if (ch === openChar) depth++;
+          else if (ch === closeChar) depth--;
+        }
+        pos++;
+      }
+      if (depth !== 0) continue; // 没找到匹配的 close
+      // openCharPos .. pos 是要替换的范围（含 openChar 和 closeChar）
+      const before = content.slice(0, openCharPos);
+      const after = content.slice(pos);
+      // 检查 pos 后面是否有逗号，紧接换行
+      const tailMatch = after.match(/^(\s*,\s*)/);
+      const tail = tailMatch ? tailMatch[0] : '';
+      newContent = before + valueStr + tail + after.slice(tail.length);
+    } else {
+      // 标量：field: 后面到逗号/换行
+      const fieldRegex = new RegExp(
+        `(\\b${field}\\s*:\\s*)([\\s\\S]*?)(,?\\s*\\n)`,
+        'm'
+      );
+      const match = content.match(fieldRegex);
+      if (!match) continue;
+      newContent = content.replace(
+        fieldRegex,
+        `${match[1]}${valueStr}${match[3]}`,
+      );
+    }
+
+    if (newContent !== content) {
+      content = newContent;
+      changed++;
+      appliedFields.push(field);
+    }
+  }
+  return { content, changed, appliedFields };
+}
+
 const MAX_ATTEMPTS = 3;
 const results = { success: 0, failed: 0, skipped: 0 };
 
@@ -207,16 +291,32 @@ for (const item of queueData.queue) {
         );
         console.log(`   ✅ ${action.type} ${action.payload.id}`);
       } else if (action.type === 'site-config-update') {
-        // 把 site-config 写到子仓
-        const configPath = site.paths?.site_config || 'src/lib/site-config/defaults.ts';
+        // 推送 site-config 到子仓
+        // payload 结构：{patch: {name?, tagline?, description?, ...}}
+        // 只在 DEFAULT_SITE_CONFIG 里改 payload.patch 里指定的字段，不重写整个文件
+        const configPath = site.paths?.site_config || 'src/lib/site-config/index.tsx';
         const currentSha = await getFileSha(owner, repo, configPath, site.branch);
-        const newContent = action.payload.content;
+        if (!currentSha) {
+          console.log(`   ⚠️ ${configPath} 不存在，跳过 site-config-update`);
+          continue;
+        }
+        const file = await ghFetch(
+          `https://api.github.com/repos/${owner}/${repo}/contents/${configPath}?ref=${site.branch}`,
+        );
+        let content = Buffer.from(file.content, 'base64').toString('utf8');
+
+        const patch = action.payload?.patch || {};
+        const patched = patchDefaultSiteConfig(content, patch);
+        if (patched.changed === 0) {
+          console.log(`   ℹ️ site-config 无变更，跳过`);
+          continue;
+        }
         await writeFile(
-          owner, repo, configPath, newContent,
-          `[blog-system] update site-config (via blog-system)`,
+          owner, repo, configPath, patched.content,
+          `[blog-system] update site-config: ${Object.keys(patch).join(', ')} (via blog-system)`,
           site.branch, currentSha,
         );
-        console.log(`   ✅ ${action.type}`);
+        console.log(`   ✅ site-config-update (${patched.changed} fields: ${Object.keys(patch).join(', ')})`);
       }
     }
 

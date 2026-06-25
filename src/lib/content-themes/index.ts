@@ -168,18 +168,13 @@ export function getEffectiveThemeSlug(articleSlug?: string): string {
 
 /* ------------------------------------------------------------------ */
 /*  getSiteDefaultTheme —— 读 site config 的 defaultContentTheme     */
-/*  在 site-config 模块里循环依赖时用 lazy require                   */
+/*  走 site-config 模块的 API，不再直接读 localStorage               */
 /* ------------------------------------------------------------------ */
+import { loadSiteConfig } from '@/lib/site-config';
+
 export function getSiteDefaultTheme(): string {
-  if (typeof localStorage === 'undefined') return 'default';
-  try {
-    const raw = localStorage.getItem('blog-system:site-config');
-    if (!raw) return 'default';
-    const cfg = JSON.parse(raw) as { defaultContentTheme?: string };
-    return cfg.defaultContentTheme ?? 'default';
-  } catch {
-    return 'default';
-  }
+  if (typeof window === 'undefined') return 'default';
+  return loadSiteConfig().defaultContentTheme ?? 'default';
 }
 
 /* ------------------------------------------------------------------ */

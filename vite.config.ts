@@ -7,6 +7,7 @@ import { siteMetaPlugin } from './vite-plugins/site-meta';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), blogSyncPlugin(), siteMetaPlugin()],
+  base: '/blog-test/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

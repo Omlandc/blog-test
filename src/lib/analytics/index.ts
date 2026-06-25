@@ -9,25 +9,60 @@ import type { AnalyticsEvent, AnalyticsSummary, TrafficSource } from '../types';
 export type { AnalyticsEvent, AnalyticsSummary, TrafficSource } from '../types';
 
 const EVENTS_KEY = 'blog-system:analytics:events';
-const MAX_EVENTS = 5000;
+// 单人站长看流量看板，最多 1000 条足够（代表最近 ~1000 次访问）
+// 修：之前 5000 条 × ~250B ≈ 1.2MB 太高，容易触顶
+const MAX_EVENTS = 1000;
+// 同时按时间过期（90 天），避免长期访问后存储“变负”
+const MAX_AGE_DAYS = 90;
 
 function loadEvents(): AnalyticsEvent[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = window.localStorage.getItem(EVENTS_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as AnalyticsEvent[];
+    const parsed = JSON.parse(raw) as AnalyticsEvent[];
+    if (!Array.isArray(parsed)) return [];
+    // 加载时也 trim，避免 storage 里已经超 MAX_EVENTS（老数据）每次 O(n) trim
+    return trimEvents(parsed);
   } catch {
     return [];
   }
 }
 
+/** 同时按数量上限 + 时间过期 trim。返回 trimmed events */
+function trimEvents(events: AnalyticsEvent[]): AnalyticsEvent[] {
+  const cutoffMs = Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+  const fresh = events.filter((e) => {
+    const ts = e.timestamp ? new Date(e.timestamp).getTime() : 0;
+    return ts >= cutoffMs;
+  });
+  if (fresh.length > MAX_EVENTS) {
+    return fresh.slice(fresh.length - MAX_EVENTS);
+  }
+  return fresh;
+}
+
 function persistEvents(events: AnalyticsEvent[]): void {
   if (typeof window === 'undefined') return;
-  // 保留最近 MAX_EVENTS 条
-  const trimmed =
-    events.length > MAX_EVENTS ? events.slice(events.length - MAX_EVENTS) : events;
-  window.localStorage.setItem(EVENTS_KEY, JSON.stringify(trimmed));
+  // 保留最近 MAX_EVENTS 条 + 90 天内
+  const trimmed = trimEvents(events);
+  // 静默写入失败（业务不阻塞）
+  try {
+    window.localStorage.setItem(EVENTS_KEY, JSON.stringify(trimmed));
+  } catch (err) {
+    // 满了的话 try 一次只保留一半
+    if (
+      err instanceof DOMException &&
+      (err.name === 'QuotaExceededError' || err.code === 22)
+    ) {
+      const half = trimmed.slice(-Math.floor(MAX_EVENTS / 2));
+      try {
+        window.localStorage.setItem(EVENTS_KEY, JSON.stringify(half));
+      } catch {
+        // give up
+      }
+    }
+  }
 }
 
 /** 解析 referrer 推断来源 */

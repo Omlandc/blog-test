@@ -1,0 +1,35 @@
+[
+  {
+    "id": "24c863b5-2cf8-417d-b944-5f392a1585ad",
+    "site": "blog-test",
+    "createdAt": "2026-06-25T09:22:34.655558Z",
+    "createdBy": "alice",
+    "actions": [
+      {
+        "type": "article-upsert",
+        "payload": {
+          "id": "test-article-001",
+          "slug": "hello-from-master",
+          "title": "主仓推送测试：Hello from blog-system",
+          "excerpt": "这是从主仓 data/pending-pushes.json 推过来的第一条测试文章。",
+          "content": "# 你好，这是主仓推送过来的\n\n**多站点架构验证**：本文来自 blog-system 主仓的推送队列。\n\n## 推送链路\n\n1. 编辑器保存到主仓 data/pending-pushes.json\n2. GitHub Action flush-content.yml 自动跑（每 10 分钟）\n3. scripts/flush-queue.mjs 通过 GitHub API 写文件到子仓\n4. 子仓 deploy.yml 自动 build + 部署到 GitHub Pages\n\n测试成功！",
+          "format": "markdown",
+          "contentTheme": "default",
+          "tags": [
+            "test",
+            "multi-site"
+          ],
+          "category": "test",
+          "status": "published",
+          "publishedAt": "2026-06-25T09:22:34.655581Z",
+          "createdAt": "2026-06-25T09:22:34.655584Z",
+          "updatedAt": "2026-06-25T09:22:34.655586Z",
+          "views": 0,
+          "authorId": "u_admin"
+        }
+      }
+    ],
+    "status": "done",
+    "movedAt": "2026-06-25T09:30:15.850Z"
+  }
+]

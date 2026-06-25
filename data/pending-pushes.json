@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "description": "内容推送队列。flush-queue.mjs 读这个文件，按 site 推送到对应子仓。",
+  "queue": [],
+  "history": []
+}

@@ -1,0 +1,54 @@
+# blog-system 多站点注册表
+#
+# 一行一个子仓。每个子仓 = 一个独立的 GitHub Pages 部署。
+# 主仓通过 GitHub API 把内容变更（pending-pushes.json）推到这里。
+
+sites:
+  # ── 测试站点 #1 ──
+  - id: blog-test
+    name: Blog Test 站点
+    description: 多站点架构验证仓，初始 demo
+    repo: Omlandc/blog-test
+    branch: main
+    enabled: true
+
+    # 推送目标路径（子仓里相对路径）
+    paths:
+      articles: public/data/articles.json
+      site_config: src/lib/site-config/defaults.ts
+
+    # 站点主页 URL（GitHub Pages 自动）
+    url: https://Omlandc.github.io/blog-test/
+    base_path: /blog-test/
+
+    # 站点主题（可选，覆盖默认）
+    look: cyberpunk-neon
+
+    # 同步设置
+    sync_articles: true       # 推送 articles.json
+    sync_site_config: true    # 推送 site-config
+    sync_base_code: true      # 接收主仓的基础代码同步
+
+    created_at: '2026-06-25'
+    updated_at: '2026-06-25'
+
+# 全局配置
+defaults:
+  # 默认账号 → 站点映射（多账号权限的最小版）
+  accounts:
+    - username: admin
+      sites: ['*']           # * = 所有站点
+      role: owner
+    - username: alice
+      sites: ['blog-test']
+      role: editor
+
+  # 推送失败重试
+  retry:
+    max_attempts: 3
+    backoff_minutes: 5
+
+  # GitHub Action 自动 flush（也可手动跑）
+  auto_flush:
+    enabled: true
+    interval_minutes: 10

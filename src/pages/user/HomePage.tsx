@@ -23,6 +23,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { getArticleStorage } from '@/lib/storage';
 import type { Article } from '@/lib/types';
 import { formatDate, cn, estimateReadingTime } from '@/lib/utils';
+import { IS_PUBLIC_ONLY } from '@/lib/build-config';
 import { ThemeSwitcher } from '@/components/theme/theme-switcher';
 import { useAuth } from '@/lib/auth';
 import { useSiteConfig } from '@/lib/site-config';
@@ -118,15 +119,15 @@ export default function HomePage(): React.ReactElement {
               浏览全部文章 <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>
-          {user ? (
+          {user && !IS_PUBLIC_ONLY ? (
             <Button variant="outline" asChild>
               <Link to="/admin">进入后台</Link>
             </Button>
-          ) : (
+          ) : !IS_PUBLIC_ONLY ? (
             <Button variant="outline" asChild>
               <Link to="/login">登录</Link>
             </Button>
-          )}
+          ) : null}
         </div>
       </motion.section>
 

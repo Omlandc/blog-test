@@ -20,7 +20,7 @@ const TOOLS_STORAGE_KEY = 'blog-system:tools';
 
 export const DEFAULT_SITE_CONFIG: SiteConfig = {
   name: 'Blog Test 站点',
-  tagline: '测试推送（via blog-system export）',
+  tagline: 'blog-system 多站点架构测试仓 #1',
   description: '这是 blog-system 总控台管理的第一个子仓（blog-test）。所有内容由主仓推送。',
   niche: 'tech',
   language: 'zh-CN',
@@ -31,7 +31,7 @@ export const DEFAULT_SITE_CONFIG: SiteConfig = {
     { country: 'US', weight: 0.6 },
     { country: 'JP', weight: 0.4 },
   ],
-  contactEmail: 'test@blogtest.local',
+  contactEmail: 'hello@example.com',
   social: {
     twitter: 'https://twitter.com/example',
     github: 'https://github.com/example',

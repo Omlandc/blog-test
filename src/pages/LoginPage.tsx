@@ -40,11 +40,18 @@ export default function LoginPage(): React.ReactElement {
     try {
       const user = await login({ username, password });
       toast.success(`欢迎回来，${user.name}`);
-      // 跳转到来源页或首页
-      const target = from === '/login' ? '/' : from;
-      navigate(user.permissions.includes('admin:access') && from === '/login' ? '/admin' : target, {
-        replace: true,
-      });
+      // 跳转逻辑：
+// 1) 有 admin:access 权限 → 去控制台（子仓列表）
+// 2) 有 from 来源且不是 /login → 回去
+// 3) 其他 → 首页
+      const isAdmin = user.permissions.includes('admin:access');
+      const hasValidFrom = from && from !== '/login' && from !== '/admin';
+      const target = isAdmin
+        ? '/admin/console'
+        : hasValidFrom
+          ? from
+          : '/';
+      navigate(target, { replace: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : '登录失败';
       setError(msg);

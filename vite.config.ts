@@ -4,9 +4,11 @@ import path from 'node:path';
 import { blogSyncPlugin } from './vite-plugins/blog-sync';
 import { siteMetaPlugin } from './vite-plugins/site-meta';
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), blogSyncPlugin(), siteMetaPlugin()],
+  plugins: [react(), blogSyncPlugin(), siteMetaPlugin(), cloudflare()],
   base: '/blog-test/',
   resolve: {
     alias: {

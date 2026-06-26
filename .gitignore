@@ -47,3 +47,9 @@ coverage
 .next
 .turbo
 .eslintcachetsconfig.tsbuildinfo
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example

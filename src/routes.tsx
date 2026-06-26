@@ -100,6 +100,9 @@ const AdminMigratePageLazy = isPublicOnly
 const AdminSitesPageLazy = isPublicOnly
   ? StubComponent
   : lazy(() => import('@/pages/admin/AdminSitesPage').then((m) => ({ default: m.AdminSitesPage })));
+const ExportForMavisPage = isPublicOnly
+  ? StubComponent
+  : lazy(() => import('@/pages/admin/ExportForMavisPage').then((m) => ({ default: m.ExportForMavisPage })));
 const AdminSettingsPageLazy = isPublicOnly
   ? StubComponent
   : lazy(() => import('@/pages/admin/AdminSettingsPage').then((m) => ({ default: m.default })));
@@ -132,7 +135,10 @@ function wrap(element: React.ReactNode): React.ReactElement {
 /** 后台守卫：static 模式下重定向到首页 */
 function AdminGuard(): React.ReactElement {
   const { mode } = useSiteConfig();
-  if (mode === 'static') {
+  // static 模式 + 子仓模式 都重定向到首页
+  // 修复：之前只检查 mode === 'static'，但 mode 默认是 'embedded'，
+  // static 部署的站点 mode 不会被设上，admin 路由依然可以访问
+  if (mode === 'static' || isPublicOnly) {
     return <Navigate to="/" replace />;
   }
   return (
@@ -183,6 +189,7 @@ const adminRoutes: RouteObject[] = isPublicOnly
       { path: 'docs', element: wrap(<AdminDocsPageLazy />) },
       { path: 'migrate', element: wrap(<AdminMigratePageLazy />) },
       { path: 'sites', element: wrap(<AdminSitesPageLazy />) },
+      { path: 'export', element: wrap(<ExportForMavisPage />) },
       { path: 'settings', element: wrap(<AdminSettingsPageLazy />) },
       { path: 'resources', element: wrap(<AdminResourcesPageLazy />) },
       { path: 'content-themes', element: wrap(<AdminContentThemesPageLazy />) },
@@ -207,13 +214,21 @@ if (isDev && EditorPreviewPage && ViewerPreviewPage) {
   );
 }
 
-export const router = createBrowserRouter([
+export const router = createBrowserRouter(
+  [
+    {
+      path: '/',
+      element: <AppShell />,
+      children: rootChildren,
+    },
+  ],
   {
-    path: '/',
-    element: <AppShell />,
-    children: rootChildren,
+    // 修：子仓部署在 /blog-test/ 子路径下时，React Router 的内部路径要去掉 /blog-test 前缀
+    // 不然会 NotFound（"页面不存在"）—— Vite 的 base 只管资源，不管路由
+    // 动态读 Vite 配置的 base URL（master: '/'，子仓: '/blog-test/'）
+    basename: (import.meta.env.BASE_URL || '/').replace(/\/$/, '') || '/',
   },
-]);
+);
 
 export function AppRouter(): React.ReactElement {
   return <RouterProvider router={router} />;

@@ -1,10 +1,5 @@
 # Cloudflare Pages 重写规则
 # 解决子仓 base='/blog-test/' 部署到 CF Pages 根域名时的资源 404
-# /blog-test/assets/xxx → /assets/xxx
-# /blog-test/data/xxx → /data/xxx
-# SPA fallback：所有非资源路径都走 index.html
+# 只做 base path 重写，SPA fallback 由 functions/[[path]].ts 处理
 
 /blog-test/*    /:splat    200
-
-# SPA fallback（必须，React Router 需要）
-/*              /index.html   200

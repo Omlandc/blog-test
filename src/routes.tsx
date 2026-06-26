@@ -223,10 +223,21 @@ export const router = createBrowserRouter(
     },
   ],
   {
-    // 修：子仓部署在 /blog-test/ 子路径下时，React Router 的内部路径要去掉 /blog-test 前缀
-    // 不然会 NotFound（"页面不存在"）—— Vite 的 base 只管资源，不管路由
-    // 动态读 Vite 配置的 base URL（master: '/'，子仓: '/blog-test/'）
-    basename: (import.meta.env.BASE_URL || '/').replace(/\/$/, '') || '/',
+    // 修：子仓代码被部署到不同路径下时（GitHub Pages /blog-test/ 或 CF Pages 根域名），
+    // basename 必须根据实际访问 URL 动态选择，否则 React Router 不渲染任何东西：
+    //   "<Router basename='/blog-test'> is not able to match the URL '/'...the <Router> won't render anything."
+    //
+    // 逻辑：
+    // - 浏览器 URL 以 /blog-test 开头 → 子仓部署在 /blog-test/ → basename = '/blog-test'
+    // - 浏览器 URL 是 / → 部署在根域名 → basename = '/'
+    // - 全部兼容，不用改 Vite config
+    basename: (() => {
+      if (typeof window === 'undefined') return '/';
+      const p = window.location.pathname;
+      // 检测是否在 /blog-test 子路径下部署
+      if (p === '/blog-test' || p.startsWith('/blog-test/')) return '/blog-test';
+      return '/';
+    })(),
   },
 );
 
